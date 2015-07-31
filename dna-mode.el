@@ -79,6 +79,30 @@
   "*List of bases and their complements.
 Bases should be lowercase, as they are upcased when the `vector is made.")
 
+(defvar dna-codon-table '(("TTT" . "F") ("TTC" . "F") ("TTA" . "L")
+			  ("TTG" . "L") ("TCT" . "S") ("TCC" . "S")
+			  ("TCA" . "S") ("TCG" . "S") ("TAT" . "Y")
+			  ("TAC" . "Y") ("TGT" . "C") ("TGC" . "C")
+			  ("TGG" . "W") ("CTT" . "L") ("CTC" . "L")
+			  ("CTA" . "L") ("CTG" . "L") ("CCT" . "P")
+			  ("CCC" . "P") ("CCA" . "P") ("CCG" . "P")
+			  ("CAT" . "H") ("CAC" . "H") ("CAA" . "Q")
+			  ("CAG" . "Q") ("CGT" . "R") ("CGC" . "R")
+			  ("CGA" . "R") ("CGG" . "R") ("ATT" . "I")
+			  ("ATC" . "I") ("ATA" . "I") ("ATG" . "M")
+			  ("ACT" . "T") ("ACC" . "T") ("ACA" . "T")
+			  ("ACG" . "T") ("AAT" . "N") ("AAC" . "N")
+			  ("AAA" . "K") ("AAG" . "K") ("AGT" . "S")
+			  ("AGC" . "S") ("AGA" . "R") ("AGG" . "R")
+			  ("GTT" . "V") ("GTC" . "V") ("GTA" . "V")
+			  ("GTG" . "V") ("GCT" . "A") ("GCC" . "A")
+			  ("GCA" . "A") ("GCG" . "A") ("GAT" . "D")
+			  ("GAC" . "D") ("GAA" . "E") ("GAG" . "E")
+			  ("GGT" . "G") ("GGC" . "G") ("GGA" . "G")
+			  ("GGG" . "G")
+			  ("TAA" . "*") ("TAG" . "*") ("TGA" . "*")))
+
+
 ;; These are the colors used when coloring bases.
 (defvar dna-base-color-a "blue")
 (defvar dna-base-color-c "black")
@@ -442,6 +466,14 @@ passed over unchanged."
       qes)))
 ;; (dna-rev-string "abcdefghi")
 
+(defun dna-comp-string (seq)
+  "Return complement of a sequence string."
+  (let ((seq-len (length seq)))
+    (let ((seq-complement (make-string seq-len ?-)))
+      (dotimes (i seq-len)
+        (aset seq-complement i (dna-complement-base (aref seq i))))
+      seq-complement)))
+
 ;;;###autoload
 (defun dna-reverse-complement-region (r-start r-end)
   "Reverse complement a region of dna from R-START to R-END.
@@ -642,6 +674,127 @@ is deactivated automatically."
   "Uncolor the bases from S to E."
   (interactive "r")
   (remove-text-properties s e '(face nil)))
+
+(defun dna-mark-codons (s e)
+  "Color the background of nucleotides in the marked region by groups of three."
+  (interactive "r")
+  (save-excursion
+    (let ((c 0) ;; c is a counter of nucleotides
+          (out-of-dna-p nil)
+          (colors ["pale green" "khaki"])
+          bstr)
+      (goto-char s)
+      (while  (and (< s e) (not out-of-dna-p))
+        (setq bstr (char-to-string (following-char)))
+        (cond
+          ((string-match dna-valid-base-regexp bstr)
+            (setq out-of-dna-p nil)
+            (facemenu-set-background (elt colors (% (/ c 3) 2)) s (+ s 1))
+            (setq c (1+ c))
+            (forward-char 1)
+            (setq s (point)))
+          ((string-match dna-cruft-regexp bstr)
+            (forward-char 1)
+            (setq out-of-dna-p nil)
+            (setq s (point)))
+          (t
+            (setq out-of-dna-p t)))))))
+
+(defun dna-mark-codons-reverse (s e)
+  "Color the background of nucleotides in the marked region by groups of three. 
+  Counting starts from the last nucleotide in the selected region"
+  (interactive "r")
+  (save-excursion
+    (let ((c 0) ;; c is a counter of nucleotides
+          (out-of-dna-p nil)
+          (colors ["pale green" "khaki"])
+          bstr)
+      (goto-char e)
+      (while  (and (> e s) (not out-of-dna-p))
+        (setq bstr (char-to-string (preceding-char)))
+        (cond
+          ((string-match dna-valid-base-regexp bstr)
+            (setq out-of-dna-p nil)
+            (facemenu-set-background (elt colors (% (/ c 3) 2)) (- e 1) e )
+            (setq c (1+ c))
+            (backward-char 1)
+            (setq e (point)))
+          ((string-match dna-cruft-regexp bstr)
+            (backward-char 1)
+            (setq out-of-dna-p nil)
+            (setq e (point)))
+          (t
+           (setq out-of-dna-p t)))))))
+
+(defun dna-translate-region (s e)
+  "Translates selected regions of nucleotides into peptide sequence, returned in messae area."
+  (interactive "r")
+  (save-excursion
+    (let ((c 0) ;; c is a counter for triplets of nucleotides
+          (out-of-dna-p nil)
+          (current-codon "")
+          (translation "")
+          (codons (list))
+          bstr)
+      (goto-char s)
+      (while  (and (< s e) (not out-of-dna-p))
+        (setq bstr (char-to-string (following-char)))
+        (cond
+          ((string-match dna-valid-base-regexp bstr)
+            (setq out-of-dna-p nil)
+            (setq c (1+ c))
+            (setq current-codon (concat current-codon bstr))
+            (if (= c 3)
+                (progn
+                 (setq codons (append codons (list current-codon)))
+                 (setq c 0)
+                 (setq current-codon "")))
+            (forward-char 1)
+            (setq s (point)))
+          ((string-match dna-cruft-regexp bstr)
+            (forward-char 1)
+            (setq out-of-dna-p nil)
+            (setq s (point)))
+          (t
+            (setq out-of-dna-p t))))
+      (while codons
+        (setq translation (concat  translation (cdr (assoc (upcase (pop codons)) dna-codon-table)))))
+        (message "%s" translation))))
+
+(defun dna-translate-region-reverse-complement (s e)
+  "Translates selected regions of nucleotides into peptide sequence, returned in messae area."
+  (interactive "r")
+  (save-excursion
+    (let ((c 0) ;; c is a counter for triplets of nucleotides
+          (out-of-dna-p nil)
+          (current-codon "")
+          (translation "")
+          (codons (list))
+          bstr)
+      (goto-char e)
+      (while  (and (> e s) (not out-of-dna-p))
+        (setq bstr (char-to-string (preceding-char)))
+        (cond
+          ((string-match dna-valid-base-regexp bstr)
+            (setq out-of-dna-p nil)
+            (setq c (1+ c))
+            (setq current-codon (concat current-codon bstr))
+            (if (= c 3)
+                (progn
+                 (setq codons (append codons (list (dna-comp-string current-codon))))
+                 (setq c 0)
+                 (setq current-codon "")))
+            (backward-char 1)
+            (setq e (point)))
+          ((string-match dna-cruft-regexp bstr)
+            (backward-char 1)
+            (setq out-of-dna-p nil)
+            (setq e (point)))
+          (t
+            (setq out-of-dna-p t))))
+      (while codons
+        (setq translation (concat  translation (cdr (assoc (upcase (pop codons)) dna-codon-table)))))
+      (message "%s" translation))))
 
 ;;; Functions for me.
 
