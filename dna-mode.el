@@ -79,6 +79,7 @@
   "*List of bases and their complements.
 Bases should be lowercase, as they are upcased when the `vector is made.")
 
+;; Standard genetic code
 (defvar dna-codon-table '(("TTT" . "F") ("TTC" . "F") ("TTA" . "L")
 			  ("TTG" . "L") ("TCT" . "S") ("TCC" . "S")
 			  ("TCA" . "S") ("TCG" . "S") ("TAT" . "Y")
@@ -727,7 +728,9 @@ is deactivated automatically."
            (setq out-of-dna-p t)))))))
 
 (defun dna-translate-region (s e)
-  "Translates selected regions of nucleotides into peptide sequence, returned in messae area."
+  "Translates nucleotides of the selected region. 
+  The resulting peptide sequence is printed in message area.
+  The algorithm stops on chars not matching dna or dna-cruft regexps"
   (interactive "r")
   (save-excursion
     (let ((c 0) ;; c is a counter for triplets of nucleotides
@@ -762,7 +765,9 @@ is deactivated automatically."
         (message "%s" translation))))
 
 (defun dna-translate-region-reverse-complement (s e)
-  "Translates selected regions of nucleotides into peptide sequence, returned in messae area."
+  "Translates the reverse complement of the selected region. 
+  The resulting peptide sequence is printed in message area.
+  The algorithm stops on chars not matching dna or dna-cruft regexps"
   (interactive "r")
   (save-excursion
     (let ((c 0) ;; c is a counter for triplets of nucleotides
